@@ -15,12 +15,26 @@ def find_pairs_within_d(X, r):
     #This should hopefully be ~(npoints * 20)
     pairs = [{} for _ in range(npoints)]
     for time in range(ntimes):
-        tree = KDTree(X)
+        tree = KDTree(X[:,time,:])
         for i, js in enumerate(tree.query_ball_tree(tree, r)):
             pairs[i].update(js)
 
     return pairs
 
+# I'd expect this one to be much much slower
+def find_k_nearest_pairs(X, k):
+    npoints = X.shape[0]
+    ntimes = X.shape[1]
+    
+    pairs = [{} for _ in range(npoints)]
+    for time in range(ntimes):
+        tree = KDTree(X[:,time,:])
+        for i in range(npoints):
+            p = X[i,time,:]
+            _, js = tree.query(p, k)
+            pairs[i].update(js)
+
+    return pairs
 
 def find_pair_dists(X, r):
     npoints = X.shape[0]
