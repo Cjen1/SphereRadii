@@ -1,0 +1,5 @@
+# SphereRadii
+
+Finds the radii of particles given their points throughout time.
+
+This is achieved by building up a linear program to solve for the radii of the particles given that they cannot intersect. (In practise this looks like expanding the size of particles until they bump into other particles)

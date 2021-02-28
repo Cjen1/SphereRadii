@@ -8,16 +8,17 @@ import numpy as np
 
 # Assumption: points marked with Nan are not in existance
 
+# We one of thse two 
 def find_pairs_within_d(X, r):
     npoints = X.shape[0]
     ntimes = X.shape[1]
 
-    #This should hopefully be ~(npoints * 20)
-    pairs = [{} for _ in range(npoints)]
+    pairs = [set() for _ in range(npoints)]
     for time in range(ntimes):
         tree = KDTree(X[:,time,:])
         for i, js in enumerate(tree.query_ball_tree(tree, r)):
-            pairs[i].update(js)
+            js = [j for j in js if j != i]
+            pairs[i] = pairs[i].union(js)
 
     return pairs
 
@@ -26,28 +27,35 @@ def find_k_nearest_pairs(X, k):
     npoints = X.shape[0]
     ntimes = X.shape[1]
     
-    pairs = [{} for _ in range(npoints)]
+    pairs = [set() for _ in range(npoints)]
     for time in range(ntimes):
         tree = KDTree(X[:,time,:])
         for i in range(npoints):
             p = X[i,time,:]
-            _, js = tree.query(p, k)
-            pairs[i].update(js)
+            _, js = tree.query(p, k + 1)
+            js = [j for j in js if j != i]
+            pairs[i] = pairs[i].union(js)
 
     return pairs
 
+# Return the pair distances of particles within r of each other at any point in time
+# Only returns the lexographically least pair distance
 def find_pair_dists(X, r):
     npoints = X.shape[0]
-    pairs = find_pairs_dists(X,r)
+    pairs = find_pairs_within_d(X,r)
 
     pair_dists = sparse((npoints, npoints))
     for i, js in enumerate(pairs):
-        # This surprisingly works!
+        js = list(js)
+        # Ensures that we don't emit too many constraints
+        js = [j for j in js if i < j]
+
+        # Indexing by js surprisingly works!
         Xjs = X[js,:,:] # [js,t,3]
         Xi = X[i,:,:] # [1,t,3]
 
         diff = Xjs - Xi #[js,t,3]
-        e_dist = sum(np.power(diff,2), 2) #[js,t,1]
+        e_dist = np.sqrt(np.sum(np.power(diff,2), 2)) #[js,t,1]
 
         # This can be swapped for something fancier which takes variation in measuring into account
         min_dist = np.min(e_dist, axis=1)
@@ -66,13 +74,14 @@ def get_radii(X,r):
     jj = [j for (i,j), d in pair_dists.items()]
     dd = [d for (i,j), d in pair_dists.items()]
 
-    f[list(dist.fromkeys(ii + jj))] = -1
+    f[list(dict.fromkeys(ii + jj))] = -1
 
     n_constraints = len(ii)
-    Aub = sparse((n_constraints, n_points))
+    Aub = sparse((n_constraints, npoints))
 
-    cons = [[i,j] for (i,j), _ in pair_dists.items()]
-    Aub[range(n_points), cons] = 1
+    links = [(i,j) for (i,j), _ in pair_dists.items()]
+    for line, (i,j) in enumerate(links):
+        Aub[line, [i,j]] = 1
 
     bub = dd
 
